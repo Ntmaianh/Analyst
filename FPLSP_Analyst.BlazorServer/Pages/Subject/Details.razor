@@ -1,0 +1,123 @@
+﻿@page "/subject/details/{subjectId}"
+
+@using FPLSP_Analyst.Application.DataTransferObjects.Subject;
+@using FPLSP_Analyst.Application.DataTransferObjects.Subject.Request;
+@using FPLSP_Analyst.Application.DataTransferObjects.SubjectIndicator;
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly;
+@using FPLSP_Analyst.Application.Interfaces.Services;
+@using FPLSP_Analyst.Application.ValueObjects.Pagination;
+@using FPLSP_Analyst.Domain.Enums;
+@using FPLSP_Analyst.Infrastructure.Extensions;
+@using FPLSP_Analyst.Infrastructure.ViewModels.Subject;
+@inject EntityStatusExtensions transEntityStatus;
+@*@attribute [Authorize(Roles = "ADMIN")]*@
+
+<MudText Color="Color.Primary" Class="mb-5" Typo="Typo.h4">Môn học</MudText>
+
+@if (_subjectDetailsDtos == null)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    @if (_subjectDetailsDtos != null)
+    {
+        <MudGrid Class="mb-3">
+            <MudItem xs="12" md="2">
+                <MudText Typo="Typo.h6" Color="Color.Inherit"><br /></MudText>
+                <MudSimpleTable>
+                    <MudTr>
+                        <MudTd>Mã</MudTd>
+                        <MudTd>@_subjectDetailsDtos.Code</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Trạng thái</MudTd>
+                            <MudTd>@transEntityStatus.ConvertForGeneral(_subjectDetailsDtos.Status)</MudTd>
+                        </MudTr>
+                    </MudSimpleTable>
+                </MudItem>
+                <MudItem xs="12" md="10">
+                    <MudText Typo="Typo.h6" Color="Color.Inherit">Các chỉ số chi tiết từng kì học</MudText>
+
+                    @if (_listIndicatorForDetails.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Warning">Không có dữ liệu</MudAlert>
+                }
+                else
+                {
+
+                    <MudTable Items="@_listIndicatorForDetails" Hover="true" Striped="true" FixedHeader="true">
+                        <HeaderContent>
+                            <MudTh>STT</MudTh>
+                            <MudTh>Kỳ học</MudTh>
+                            <MudTh>Sinh viên qua môn</MudTh>
+                            <MudTh>Sinh viên cấm thi</MudTh>
+                            <MudTh>Sinh viên trượt</MudTh>
+                            <MudTh>Sinh viên không đi thi</MudTh>
+                        </HeaderContent>
+
+                        <RowTemplate>
+                            <MudTd DataLabel="STT">@(_listIndicatorForDetails.IndexOf(context) + 1)</MudTd>
+                            <MudTd DataLabel="Kỳ học">@context.Semester</MudTd>
+                                <MudTd DataLabel="Sinh viên qua môn">@context.StudentPassedNumber@("/")@context.StudentTotalNumber@(" (")@context.StudentPassedPercent.ToString("0.00\\%\\)")</MudTd>
+                                <MudTd DataLabel="Sinh viên cấm thi">@context.StudentBannedNumber@("/")@context.StudentTotalNumber@(" (")@context.StudentBannedPercent.ToString("0.00\\%\\)")</MudTd>
+                                <MudTd DataLabel="Sinh viên trượt">@context.StudentFailedNumber@("/")@context.StudentTotalNumber@(" (")@context.StudentFailedPercent.ToString("0.00\\%\\)")</MudTd>
+                                <MudTd DataLabel="Sinh viên không đi thi">@context.StudentMissedNumber</MudTd>
+                            </RowTemplate>
+
+                            <PagerContent>
+                                @if (_paginationResponse != null)
+                            {
+                                <MudGrid Class="mb-3">
+                                    <MudItem xs="12" Class="d-flex justify-center mt-3">
+                                        @if (_paginationResponse.PageNumber <= 1)
+                                        {
+                                            <MudPagination Color="Color.Primary" BoundaryCount="1" Count="@(_paginationResponse!.HasNext? 2 : 1)" @bind-Selected="@_paginationRequest.PageNumber" />
+                                        }
+                                        else
+                                        {
+                                            <MudPagination Color="Color.Primary" BoundaryCount="1" Count="@(_paginationResponse!.HasNext? (_paginationResponse.PageNumber + 1) : _paginationResponse.PageNumber)" @bind-Selected="@_paginationRequest.PageNumber" />
+                                        }
+                                    </MudItem>
+                                </MudGrid>
+                            }
+                        </PagerContent>
+                    </MudTable>
+                }
+            </MudItem>
+        </MudGrid>
+    }
+}
+
+
+@code {
+    [Parameter]
+    public string subjectId { set; get; }
+
+    [Inject] private ISubjectReadOnlyRepository _subjectReadOnlyRepository { get; set; }
+    [Inject] private ILocalizationService _localizationService { get; set; }
+    private CancellationToken _cancellationToken = default;
+    ViewSubjectDetailsWithPaginationRequest _paginationRequest = new();
+    private PaginationResponse<SubjectIndicatorForDetails> _paginationResponse { get; set; }
+    private List<SubjectIndicatorForDetails> _listIndicatorForDetails { get; set; }
+
+    private SubjectDetailsDto _subjectDetailsDtos { get; set; }
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSubjectDetails();
+    }
+    private async Task LoadSubjectDetails()
+    {
+        _paginationRequest.SubjectId = Guid.Parse(subjectId);
+
+        SubjectDetailsViewModel vm = new(_subjectReadOnlyRepository, _localizationService);
+        await vm.HandleAsync(_paginationRequest, _cancellationToken);
+        if (vm.Success)
+        {
+            _subjectDetailsDtos = (SubjectDetailsDto)vm.Data;
+            _paginationResponse = _subjectDetailsDtos.SubjectIndicatorForDetails;
+            _listIndicatorForDetails = _paginationResponse.Data!.ToList();
+        }
+    }
+}
+

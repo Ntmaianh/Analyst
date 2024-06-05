@@ -1,0 +1,42 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+	  <TargetFramework>net7.0</TargetFramework>
+	  <Nullable>enable</Nullable>
+	  <ImplicitUsings>enable</ImplicitUsings>
+	  <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="Pages\Class\Indicator.razor" />
+    <None Include="Pages\Class\List.razor" />
+    <None Include="Pages\Error.cshtml" />
+    <None Include="Pages\Home\Home.razor" />
+    <None Include="Pages\_Host.cshtml" />
+    <None Include="Pages\_Layout.cshtml" />
+    <None Include="Shared\MainLayout.razor" />
+    <None Include="Shared\NavMenu.razor" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Chart.js" Version="3.7.1" />
+    <PackageReference Include="MudBlazor" Version="6.11.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FPLSP_Analyst.Application\FPLSP_Analyst.Application.csproj" />
+    <ProjectReference Include="..\FPLSP_Analyst.Infrastructure\FPLSP_Analyst.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FPLSP_Analyst.Application\FPLSP_Analyst.Application.csproj" />
+    <ProjectReference Include="..\FPLSP_Analyst.Infrastructure\FPLSP_Analyst.Infrastructure.csproj" />
+    <ProjectReference Include="..\FPLSP_Token\FPLSP_Token.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Components\SearchBar\" />
+    <Folder Include="SavedFiles\Excels\Handled\" />
+  </ItemGroup>
+
+</Project>

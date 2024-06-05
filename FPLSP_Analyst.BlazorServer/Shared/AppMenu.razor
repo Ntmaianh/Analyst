@@ -1,0 +1,30 @@
+﻿@using FPLSP_Analyst.BlazorServer.Extensions
+@* <AuthorizeView Roles="ADMIN">
+    <Authorized>
+ *@
+        <MudMenu FullWidth="true" ActivationEvent="@MouseEvent.MouseOver" AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.BottomCenter">
+            <ActivatorContent>
+                <MudButton Style="color:#fff" Class="px-8">Danh sách<MudIcon Style="margin-left: 1em" Icon="@Icons.Material.Filled.KeyboardArrowDown"></MudIcon></MudButton>
+            </ActivatorContent>
+            <ChildContent>
+                <MudMenuItem Class="ma-0 pa-0 aligns-left"><MudNavLink Href="@(RouteManager.Semester.List)">Kỳ học</MudNavLink></MudMenuItem>
+                <MudMenuItem Class="ma-0 pa-0 aligns-left"><MudNavLink Href="@(RouteManager.Major.List)">Chuyên ngành</MudNavLink></MudMenuItem>
+                <MudMenuItem Class="ma-0 pa-0 aligns-left"><MudNavLink Href="@(RouteManager.Subject.List)">Môn học</MudNavLink></MudMenuItem>
+                <MudMenuItem Class="ma-0 pa-0 aligns-left"><MudNavLink Href="@(RouteManager.Lecturer.List)">Giảng viên</MudNavLink></MudMenuItem>
+                <MudMenuItem Class="ma-0 pa-0 aligns-left"><MudNavLink Href="@(RouteManager.Class.List)">Lớp học</MudNavLink></MudMenuItem>
+            </ChildContent>
+        </MudMenu>
+        <MudMenu FullWidth="true" ActivationEvent="@MouseEvent.MouseOver" AnchorOrigin="Origin.BottomCenter" TransformOrigin="Origin.BottomCenter">
+            <ActivatorContent>
+                <MudButton Style="color:#fff" Class="px-8">Chỉ số<MudIcon Style="margin-left: 1em" Icon="@Icons.Material.Filled.KeyboardArrowDown"></MudIcon></MudButton>
+            </ActivatorContent>
+            <ChildContent>
+                <MudMenuItem Class="ma-0 pa-0 aligns-left"><MudNavLink Href="@(RouteManager.GroupConfig.List)">Cấu hình chỉ số</MudNavLink></MudMenuItem>
+                <MudMenuItem Class="ma-0 pa-0 aligns-left"><MudNavLink Href="@(RouteManager.Major.Indicator)">Chuyên ngành</MudNavLink></MudMenuItem>
+                <MudMenuItem Class="ma-0 pa-0 aligns-left"><MudNavLink Href="@(RouteManager.Subject.Indicator)">Môn học</MudNavLink></MudMenuItem>
+                <MudMenuItem Class="ma-0 pa-0 aligns-left"><MudNavLink Href="@(RouteManager.Lecturer.Indicator)">Giảng viên</MudNavLink></MudMenuItem>
+                <MudMenuItem Class="ma-0 pa-0 aligns-left"><MudNavLink Href="@(RouteManager.Class.Indicator)">Lớp học</MudNavLink></MudMenuItem>
+            </ChildContent>
+        </MudMenu>
+@*     </Authorized>
+</AuthorizeView> *@

@@ -1,0 +1,185 @@
+﻿@page "/major/indicator"
+
+@using FPLSP_Analyst.Application.DataTransferObjects.ForSelect;
+@using FPLSP_Analyst.Application.DataTransferObjects.MajorIndicator.request;
+@using FPLSP_Analyst.Application.DataTransferObjects.MajorIndicator;
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly;
+@using FPLSP_Analyst.Application.Interfaces.Services;
+@using FPLSP_Analyst.Application.ValueObjects.Pagination;
+@using FPLSP_Analyst.Infrastructure.ViewModels.ForSelect;
+@using FPLSP_Analyst.Infrastructure.ViewModels.MajorIndicator;
+@using static FPLSP_Analyst.Application.ValueObjects.Common.QueryConstant
+@*@attribute [Authorize(Roles = "ADMIN")]*@
+
+<MudText Color="Color.Primary" Class="mb-5" Typo="Typo.h4">Thông tin chỉ số của chuyên ngành</MudText>
+
+@if (_hasError)
+{
+    <MudAlert Severity="Severity.Error">Đã xảy ra lỗi khi tải dữ liệu.</MudAlert>
+}
+else
+{
+    if (_listSemesterForSelectDto == null)
+    {
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    }
+    else
+    {
+        <MudGrid Class="mb-3">
+            <MudItem xs="12" md="4">
+                <MudTextField T="string" @bind-Value="@_paginationRequest.SearchString" Label="Tìm kiếm" Placeholder="Theo mã, tên giảng viên" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search"></MudTextField>
+            </MudItem>
+            <MudItem xs="12" md="2" lg="2">
+                <MudSelect T="string" Label="Kì học" Value="@selectedSemesterId" ValueChanged="OnSelectedSemester">
+                    @if (_listSemesterForSelectDto.Count != 0)
+                    {  @foreach (var semester in _listSemesterForSelectDto)
+                        {
+                            <MudSelectItem T="string" Value="@(semester.Id.ToString())">@semester.Code</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+
+
+        if (_listMajorIndicatorDto == null)
+        {
+            <MudAlert Severity="Severity.Warning">Không có dữ liệu</MudAlert>
+        }
+        else
+        {
+            <MudTable Items="@_listMajorIndicatorDto" Hover="true" Striped="true" FixedHeader="true">
+                <HeaderContent>
+                    <MudTh>STT</MudTh>
+                    <MudTh>Kỳ học</MudTh>
+                    <MudTh>Chuyên ngành</MudTh>
+                    <MudTh>Sinh viên qua môn</MudTh>
+                    <MudTh>Sinh viên cấm thi</MudTh>
+                    <MudTh>Sinh viên trượt</MudTh>
+                    <MudTh>Sinh viên không đi thi</MudTh>
+                    <MudTh>Môn cấm thi >20%</MudTh>
+                    <MudTh>Môn cấm thi >10%</MudTh>
+                    <MudTh>Môn cấm thi dưới 3%</MudTh>
+                    <MudTh>Lớp cấm thi >20%</MudTh>
+                    <MudTh>Lớp cấm thi >10%</MudTh>
+                    <MudTh>Lớp cấm thi dưới 3%</MudTh>
+                    @* <MudTh>Cần giải trình</MudTh> *@
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="STT">@(_listMajorIndicatorDto.IndexOf(context) + 1)</MudTd>
+                    <MudTd DataLabel="Kỳ học">@context.SemesterCode</MudTd>
+                        <MudTd DataLabel="Chuyên ngành">@context.MajorCode</MudTd>
+                        <MudTd DataLabel="Sinh viên qua môn">@context.StudentPassedNumber@("/")@context.StudentTotalNumber<br>@(" (")@context.StudentPassedNumber.ToString("0.00\\%\\)")</MudTd>
+                        <MudTd DataLabel="Sinh viên cấm thi">@context.StudentBannedNumber@("/")@context.StudentTotalNumber<br>@(" (")@context.StudentBannedNumber.ToString("0.00\\%\\)")</MudTd>
+                        <MudTd DataLabel="Sinh viên trượt">@context.StudentFailedNumber@("/")@context.StudentTotalNumber<br>@(" (")@context.StudentFailedNumber.ToString("0.00\\%\\)")</MudTd>
+                        <MudTd DataLabel="Sinh viên không đi thi">@context.StudentMissedNumber</MudTd>
+                        <MudTd DataLabel="Môn cấm thi >20%">@context.SubjectGreaterThan20PercentBannedNumber@("/")@context.SubjectTotalNumber<br>@(" (")@context.SubjectGreaterThan20PercentBannedPercent.ToString("0.00\\%\\)")</MudTd>
+                        <MudTd DataLabel="Môn cấm thi >10%">@context.SubjectGreaterThan10PercentBannedNumber@("/")@context.SubjectTotalNumber<br>@(" (")@context.SubjectGreaterThan10PercentBannedPercent.ToString("0.00\\%\\)")</MudTd>
+                        <MudTd DataLabel="Môn cấm thi dưới 3%">@context.SubjectLessThan3PercentBannedNumber@("/")@context.SubjectTotalNumber<br>@(" (")@context.SubjectLessThan3PercentBannedPercent.ToString("0.00\\%\\)")</MudTd>
+                        <MudTd DataLabel="Lớp cấm thi >20%">@context.ClassGreaterThan20PercentBannedNumber@("/")@context.ClassTotalNumber<br>@(" (")@context.ClassGreaterThan20PercentBannedPercent.ToString("0.00\\%\\)")</MudTd>
+                        <MudTd DataLabel="Lớp cấm thi >10%">@context.ClassGreaterThan10PercentBannedNumber@("/")@context.ClassTotalNumber<br>@(" (")@context.ClassGreaterThan10PercentBannedPercent.ToString("0.00\\%\\)")</MudTd>
+                        <MudTd DataLabel="Lớp cấm thi dưới 3%">@context.ClassLessThan3PercentBannedNumber@("/")@context.ClassTotalNumber<br>@(" (")@context.ClassLessThan3PercentBannedPercent.ToString("0.00\\%\\)")</MudTd>
+                        @* <MudTd DataLabel="" Style="text-align: center;"><MudIconButton Title="Yêu cầu giải trình" hidden="@(!context.IsNeedExplanation)" Color="Color.Error" Icon="@Icons.Material.Filled.Mail" OnClick="()=>{}"></MudIconButton></MudTd> *@
+                    </RowTemplate>
+                    <PagerContent>
+                        @if (_paginationResponse != null)
+                    {
+                        <MudGrid Class="mb-3">
+                            <MudItem xs="12" Class="d-flex justify-center mt-3">
+                                @if (_paginationResponse.PageNumber <= 1)
+                                {
+                                    <MudPagination Color="Color.Primary" BoundaryCount="1" Count="@(_paginationResponse!.HasNext? 2 : 1)" @bind-Selected="@_paginationRequest.PageNumber" />
+                                }
+                                else
+                                {
+                                    <MudPagination Color="Color.Primary" BoundaryCount="1" Count="@(_paginationResponse!.HasNext? (_paginationResponse.PageNumber + 1) : _paginationResponse.PageNumber)" @bind-Selected="@_paginationRequest.PageNumber" />
+                                }
+                            </MudItem>
+                        </MudGrid>
+                    }
+                </PagerContent>
+            </MudTable>
+        }
+    }
+}
+
+
+@code {
+    [Inject]
+    IMajorIndicatorReadOnlyRepository _majorIndicatorReadOnlyRepository { get; set; }
+    [Inject]
+    ISemesterReadOnlyRepository _semesterReadOnlyRepository { get; set; }
+    [Inject]
+    ILocalizationService _localizationService { get; set; }
+
+    ViewMajorIndicatorWithPaginationRequest _paginationRequest = new();
+    PaginationResponse<MajorIndicatorDto>? _paginationResponse { get; set; }
+
+    List<MajorIndicatorDto>? _listMajorIndicatorDto { get; set; }
+    List<SemesterForSelectDto>? _listSemesterForSelectDto { get; set; }
+
+    CancellationToken _cancellationToken = default;
+    string? selectedSemesterId { get; set; }
+    bool _hasError = false;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSemesterForSelect();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            if (string.IsNullOrWhiteSpace(selectedSemesterId))
+            {
+                if (_listSemesterForSelectDto != null)
+                {
+                    if (_listSemesterForSelectDto!.Count > 0)
+                    {
+                        await OnSelectedSemester(_listSemesterForSelectDto.FirstOrDefault()!.Id.ToString());
+
+                        StateHasChanged();
+                    }
+                }
+            }
+        }
+    }
+
+    async Task LoadSemesterForSelect()
+    {
+        SemesterForSelectViewModel vm = new(_semesterReadOnlyRepository, _localizationService);
+
+        await vm.HandleAsync(new(), _cancellationToken);
+
+        if (true)
+        {
+            _listSemesterForSelectDto = (List<SemesterForSelectDto>)vm.Data;
+        }
+        else
+        {
+            _hasError = true;
+        }
+    }
+
+    async Task OnSelectedSemester(string idSemester)
+    {
+        selectedSemesterId = idSemester;
+        _paginationRequest.SemesterId = Guid.Parse(idSemester);
+
+        MajorIndicatorListWithPaginationViewModel vm = new(_majorIndicatorReadOnlyRepository, _localizationService);
+        await vm.HandleAsync(_paginationRequest, _cancellationToken);
+        if (vm.Success)
+        {
+            _paginationResponse = (PaginationResponse<MajorIndicatorDto>)vm.Data;
+            _listMajorIndicatorDto = _paginationResponse.Data!.ToList();
+        }
+        else
+        {
+            _hasError = true;
+        }
+
+    }
+
+}

@@ -1,0 +1,69 @@
+﻿@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly;
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadWrite;
+@using FPLSP_Analyst.Application.ViewModels.Excels.Mics;
+@inject ISnackbar _mudSnackbar
+@inject IFileHandlingReadOnlyRepository _repoReadOnlyFileHandling
+@inject IFileHandlingReadWriteRepository _repoReadWriteFileHandling
+@inject IJSRuntime _jsRuntime;
+
+<MudOverlay @bind-Visible="@Enable" LightBackground="true" ZIndex="1301">
+    <MudPaper Class="px-2 pt-2 pb-1">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true"></MudProgressCircular>
+    </MudPaper>
+</MudOverlay>
+
+@code {
+    [Parameter]
+    public string? FileName { get; set; } = null;
+
+    [Parameter]
+    public List<ExcelParameterVM> Parameters { get; set; } = new();
+
+    [Parameter]
+    public string Function { get; set; } = "";
+
+    [Parameter]
+    public bool IsTemplate { get; set; } = false;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private ExcelOutputVM? _excelOutput = null;
+    private bool Enable = true;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (Function != "")
+            {
+                _excelOutput = await _repoReadWriteFileHandling.ExcelExport(new()
+                    {
+                        Function = Function,
+                        Parameters = Parameters,
+                        IsTemplate = IsTemplate,
+                    });
+            }
+            else
+            {
+                _mudSnackbar.Add("Chưa định nghĩa phương thức", Severity.Error);
+            }
+
+            var fileStream = await _repoReadOnlyFileHandling.GetFileStreamAsync(_excelOutput.FileName, "Excels/Handled");
+
+            var memoryStream = new MemoryStream();
+            await fileStream.CopyToAsync(memoryStream);
+
+            await _jsRuntime.InvokeAsync<object>("saveAsFile", (FileName ?? "Export") + DateTime.Now + ".xlsx",
+                Convert.ToBase64String(memoryStream.ToArray()));
+
+            await OnClose.InvokeAsync();
+        }
+    }
+}

@@ -1,0 +1,225 @@
+﻿@page "/group-config/list"
+@using AutoMapper
+@using FPLSP_Analyst.Application.DataTransferObjects.GroupConfig.Request;
+@using FPLSP_Analyst.Application.DataTransferObjects.GroupConfig;
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly;
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadWrite
+@using FPLSP_Analyst.Application.Interfaces.Services;
+@using FPLSP_Analyst.Application.ValueObjects.Pagination;
+@using FPLSP_Analyst.Domain.Entities;
+@using FPLSP_Analyst.BlazorServer.Components.GroupConfig;
+@using FPLSP_Analyst.Domain.Enums;
+@using FPLSP_Analyst.Infrastructure.Extensions;
+@using FPLSP_Analyst.Infrastructure.ViewModels.GroupConfig;
+@*@attribute [Authorize(Roles = "ADMIN")]*@
+
+@inject EntityStatusExtensions transEntityStatus;
+
+<div class="d-flex justify-space-between aligns-center">
+    <MudText Color="Color.Primary" Class="mb-5" Typo="Typo.h4">Danh sách cấu hình chỉ số</MudText>
+    <MudButton Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small" Class="mb-5" OnClick="OnCreateClicked">Thêm mới <MudIcon Icon="@Icons.Material.Filled.Add"></MudIcon></MudButton>
+</div>
+@if (_listGroupConfig == null)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <MudGrid Class="mb-3">
+        <MudItem xs="12" md="5" lg="5">
+            <MudTextField T="string" @bind-Value="@_paginationRequest.SearchString" Placeholder="Tìm kiếm theo mã" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search"></MudTextField>
+        </MudItem>
+    </MudGrid>
+    
+    if (_listGroupConfig == null || _listGroupConfig.Count == 0)
+    {
+        <MudAlert Severity="Severity.Warning">Không có dữ liệu</MudAlert>
+    }
+    else
+    {
+        <MudTable Items="@_listGroupConfig" Hover="true" Striped="true" FixedHeader="true">
+            <HeaderContent>
+                <MudTh>STT</MudTh>
+                <MudTh>Mã nhóm cấu hình chỉ số</MudTh>
+                <MudTh>Số nhóm cấu hình áp dụng</MudTh>
+                <MudTh Style="text-align: center;">Hành động</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="STT">@(_listGroupConfig.IndexOf(context) + 1)</MudTd>
+                <MudTd DataLabel="Mã nhóm cấu hình chỉ số">@context.Code</MudTd>
+                <MudTd DataLabel="Số kỳ học áp dụng">@context.NumberOfSemester</MudTd>
+                    <MudTd DataLabel="Hành động" Style="text-align: center;">
+                        <MudIconButton Title="Chỉnh sửa" Icon="@Icons.Material.Filled.Edit" Color="Color.Info" OnClick="()=>OnUpdateClicked(context.Id)"></MudIconButton>
+                        <MudIconButton Title="Xóa" Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="()=>OnDeleteClicked(context.Id)"></MudIconButton>
+                    </MudTd>
+                </RowTemplate>
+            <PagerContent>
+                @if (_paginationResponse != null)
+                {
+                    <MudGrid Class="mb-3">
+                        <MudItem xs="12" Class="d-flex justify-center mt-3">
+                            @if (_paginationResponse.PageNumber <= 1)
+                            {
+                                <MudPagination Color="Color.Primary" BoundaryCount="1" Count="@(_paginationResponse!.HasNext? 2 : 1)" @bind-Selected="@_paginationRequest.PageNumber" />
+                            }
+                            else
+                            {
+                                <MudPagination Color="Color.Primary" BoundaryCount="1" Count="@(_paginationResponse!.HasNext? (_paginationResponse.PageNumber + 1) : _paginationResponse.PageNumber)" @bind-Selected="@_paginationRequest.PageNumber" />
+                            }
+                        </MudItem>
+                    </MudGrid>
+                }
+            </PagerContent>
+        </MudTable>
+    }
+}
+
+<MudMessageBox @ref="_mbox" Title="Xác nhận" CancelText="Hủy">
+    <MessageContent>
+        Xác nhận xóa cuộc thi!
+    </MessageContent>
+    <YesButton>
+        <MudButton Color="Color.Primary" OnClick="Delete">
+            Xác nhận
+        </MudButton>
+    </YesButton>
+</MudMessageBox>
+
+@code {
+
+    [Inject]
+    private IGroupConfigReadOnlyRepository _groupConfigReadOnlyRepository { get; set; }
+    [Inject]
+    private IGroupConfigReadWriteRepository _groupConfigReadWriteRepository { get; set; }
+    [Inject]
+    private ILocalizationService _localizationService { get; set; }
+    [Inject]
+    private IMapper _mapper { get; set; }
+    [Inject] NavigationManager _navigationManager { get; set; }
+    private CancellationToken _cancellationToken = default;
+    ViewGroupConfigWithPaginationRequest _paginationRequest = new();
+    private PaginationResponse<GroupConfigDto>? _paginationResponse { get; set; }
+    private List<GroupConfigDto>? _listGroupConfig { get; set; }
+    GroupConfigDeleteRequest _deleteRequest = new();
+
+    [Inject] IDialogService _dialogService { get; set; }
+    MudMessageBox _mbox { get; set; }
+
+    int _confirmType { get; set; } = 0; //1:Create,2:Update,3:Delete
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    async Task LoadData()
+    {
+        await LoadGroupConfig();
+    }
+
+    private async Task LoadGroupConfig()
+    {
+        GroupConfigListWithPaginationViewModel vm = new(_groupConfigReadOnlyRepository, _localizationService);
+        await vm.HandleAsync(_paginationRequest, _cancellationToken);
+        if (vm.Success)
+        {
+            _paginationResponse = (PaginationResponse<GroupConfigDto>)vm.Data;
+            _listGroupConfig = _paginationResponse.Data!.ToList();
+        }
+    }
+
+    async Task OnConfirm()
+    {
+        switch (_confirmType)
+        {
+            case 1:
+                await Create();
+                break;
+            case 2:
+                await Update();
+                break;
+            case 3:
+                await Delete();
+                break;
+            default:
+                // Handle other cases or provide a default behavior
+                break;
+        }
+    }
+
+    private async Task OnCreateClicked()
+    {
+        _confirmType = 1;
+
+        DialogOptions closeOnEscapeKey = new DialogOptions() { MaxWidth = MaxWidth.Medium, CloseOnEscapeKey = true, FullWidth = true };
+        var parameters = new DialogParameters();
+        var result = await _dialogService.Show<CreateGroupConfig>("Thêm mới nhóm cấu hình", parameters, closeOnEscapeKey).Result;
+
+        if (!result.Canceled)
+        {
+            var success = result.Data as bool?;
+            if (success == true)
+            {
+                await LoadData();
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    async Task Create()
+    {
+    }
+
+    private async Task OnUpdateClicked(Guid id)
+    {
+        _confirmType = 2;
+
+        DialogOptions closeOnEscapeKey = new DialogOptions() { MaxWidth = MaxWidth.Medium, CloseOnEscapeKey = true, FullWidth = true };
+        var parameters = new DialogParameters();
+        parameters.Add("Id", id);
+        var result = await _dialogService.Show<UpdateGroupConfig>("Chỉnh sửa nhóm cấu hình", parameters, closeOnEscapeKey).Result;
+
+        if (!result.Canceled)
+        {
+            var success = result.Data as bool?;
+            if (success == true)
+            {
+                await LoadData();
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    async Task Update()
+    {
+
+
+    }
+
+    private async Task OnDeleteClicked(Guid id)
+    {
+        _confirmType = 3;
+
+        _deleteRequest.Id = id;
+
+        bool? result = await _mbox.Show();
+        StateHasChanged();
+    }
+
+    async Task Delete()
+    {
+        GroupConfigDeleteViewModel vm = new(_groupConfigReadWriteRepository, _localizationService, _mapper);
+
+        await vm.HandleAsync(_deleteRequest, _cancellationToken);
+
+        await LoadGroupConfig();
+    }
+
+    // void NavigateToDetails(string groupConfigId)
+    // {
+    //     _navigationManager.NavigateTo($"/groupConfig/details/{groupConfigId}");
+    // }
+}
+

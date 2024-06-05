@@ -1,0 +1,156 @@
+﻿@page "/major-statistic"
+@using FPLSP_Analyst.Application.DataTransferObjects.ForSelect.Request;
+@using FPLSP_Analyst.Application.DataTransferObjects.ForStatistic;
+@using FPLSP_Analyst.Application.DataTransferObjects.ForStatistic.MajorStatistic;
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly;
+@using FPLSP_Analyst.Application.Interfaces.Services;
+@using FPLSP_Analyst.Infrastructure.ViewModels.ForSelect;
+@using FPLSP_Analyst.Infrastructure.ViewModels.ForStatistic;
+@using Microsoft.AspNetCore.Components.Web
+<h3>ChartAnalyst</h3>
+@if (_majorForStatisticDtos == null)
+{
+   <MudProgressCircular Color="Color.Primary" Indeterminate="true"/>
+}
+else
+{
+    if (_majorForStatisticDtos.Count == 0)
+    {
+        <MudAlert Severity="Severity.Warning">Không có dữ liệu</MudAlert>
+    }
+    else
+    {
+        <MudGrid Class="mb-3">
+            <MudItem xs="12" md="2" lg="2" Class="mb-5" Style=" padding-top:20px; padding-bottom:15px;">
+                <MudSelect Label="Chọn ngành" @bind-Value="selectedMajorName">
+                    @foreach (var item in _majorForStatisticDtos.DistinctBy(x => x.Code))
+                    {
+                        <MudSelectItem Value="item.Code">@item.Code</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            @if (!string.IsNullOrEmpty(selectedMajorName))
+            {
+                <MudItem xs="12" md="2" lg="2" Class="mb-5" Style=" padding-top:20px; padding-bottom:15px;">
+                    <MudSelect T="string" Label="Chọn" @bind-Value="selectedName">
+                        <MudSelectItem T="string" Value="@("Subject")"></MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Class")"></MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Lecturer")"></MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            }
+        </MudGrid>
+            @if (!string.IsNullOrEmpty(selectedName) && !string.IsNullOrEmpty(selectedMajorName))
+            {
+                <MudItem xs="12">
+                    <canvas id="total-statistic-line-percent-chart"></canvas>
+                    <MudText>Biểu đồ đường thể hiện chỉ số của @($"{selectedName}")</MudText>
+                </MudItem>
+            }
+    }   
+}
+@code {
+    public string selectedMajorName;
+    public string selectedName;
+    private string[] colorChoice = { "#FFA726", "#FF9800", "#FB8C00" };
+    [Inject]
+    public IJSRuntime JSRuntime { get; set; } = null!;
+    List<MajorForStatisticDto>? _majorForStatisticDtos { get; set; }
+
+    [Inject]
+    private IMajorReadOnlyRepository _majorForStaticReadOnlyRepository { get; set; }
+
+    [Inject]
+    private ILocalizationService _localizationService { get; set; }
+
+    private CancellationToken cancellationToken = default;
+    MajorForSelectRequest _request = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMajor();
+    }
+    private async Task LoadMajor()
+    {
+        MajorForSelectViewModel vm = new(_majorForStaticReadOnlyRepository, _localizationService);
+        await vm.HandleAsync(_request, cancellationToken);
+        if (vm.Success)
+        {
+            _majorForStatisticDtos = (List<MajorForStatisticDto>)vm.Data!;
+        }
+    }
+    public void OnSelectedNameSemester(string str)
+    {
+        selectedName = str;
+
+    }
+    public void OnSelectedNameMajor(string str)
+    {
+        selectedMajorName = str;
+    }
+    List<string> semester = new() { "SP24", "SU23", "SF23","SW23" };
+    public async Task OnSelectedName(string str)
+    {
+        selectedName = str;
+        switch (str)
+        {
+            case "Subject":
+                var lstChoiceSubject = _majorForStatisticDtos.Where(x => x.Code == selectedMajorName).First().subjectIndicatorDtos;
+                var lstChoiceSubjectPercent = lstChoiceSubject.Select(x => new
+                {
+                    x.StudentBannedPercent,
+                    x.StudentPassedPercent,
+                    x.StudentFailedPercent,
+                }).ToList();
+                var lstChoiceSubjectNumber = lstChoiceSubject.Select(x => new
+                {
+                    x.StudentBannedNumber,
+                    x.StudentPassedNumber,
+                    x.StudentFailedNumber,
+                    x.StudentMissedNumber
+                }).ToList();
+                await JSRuntime.InvokeVoidAsync("createLineChartPercent", semester, colorChoice, lstChoiceSubjectPercent, "total-statistic-line-percent-chart");
+                await JSRuntime.InvokeVoidAsync("createLineChartNumber", semester, colorChoice, lstChoiceSubjectNumber, "total-statistic-line-number-chart");
+                break;
+            case "Class":
+                var lstChoiceClass = _majorForStatisticDtos.Where(x => x.Code == selectedMajorName).First().classIndicatorDtos;
+                var lstChoiceClassPercent = lstChoiceClass.Select(x => new
+                {
+                    x.StudentBannedPercent,
+                    x.StudentPassedPercent,
+                    x.StudentFailedPercent
+                }).ToList();
+                var lstChoiceClassNumber = lstChoiceClass.Select(x => new
+                {
+                    x.StudentBannedNumber,
+                    x.StudentPassedNumber,
+                    x.StudentFailedNumber
+                }).ToList();
+                await JSRuntime.InvokeVoidAsync("createLineChartPercent", semester, colorChoice, lstChoiceClassPercent, "total-statistic-line-percent-chart");
+                await JSRuntime.InvokeVoidAsync("createLineChartNumber", semester, colorChoice, lstChoiceClassNumber, "total-statistic-line-number-chart");
+                break;
+            case "Student":
+                var lstChoiceStudent = _majorForStatisticDtos.Where(x => x.Code == selectedMajorName).First().lecturerIndicatorDtos;
+                var lstChoiceStudentPercent = lstChoiceStudent.Select(x => new
+                {
+                    x.StudentPassedPercent,
+                    x.StudentFailedPercent,
+                    x.StudentBannedPercent
+                }).ToList();
+                var lstChoiceStudentNumber = lstChoiceStudent.Select(x => new
+                {
+                    x.StudentPassedNumber,
+                    x.StudentFailedNumber,
+                    x.StudentBannedNumber
+                }).ToList();
+                await JSRuntime.InvokeVoidAsync("createLineChartPercent", semester, colorChoice, lstChoiceStudentPercent, "total-statistic-line-percent-chart");
+                await JSRuntime.InvokeVoidAsync("createLineChartNumber", semester, colorChoice, lstChoiceStudentNumber, "total-statistic-line-number-chart");
+                break;
+            default:
+                break;
+        }
+        StateHasChanged();
+
+    }
+
+}

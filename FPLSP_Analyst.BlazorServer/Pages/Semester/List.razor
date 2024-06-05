@@ -1,0 +1,304 @@
+﻿@page "/semester/list"
+@using AutoMapper
+@using FPLSP_Analyst.Application.DataTransferObjects.GroupConfig
+@using FPLSP_Analyst.Application.DataTransferObjects.GroupConfig.Request
+@using FPLSP_Analyst.Application.DataTransferObjects.Semester.Request;
+@using FPLSP_Analyst.Application.DataTransferObjects.Semester;
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly;
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadWrite
+@using FPLSP_Analyst.Application.Interfaces.Services;
+@using FPLSP_Analyst.Application.ValueObjects.Pagination;
+@using FPLSP_Analyst.BlazorServer.Components.Semester
+@using FPLSP_Analyst.Domain.Entities;
+@using FPLSP_Analyst.Domain.Enums;
+@using FPLSP_Analyst.Infrastructure.Extensions;
+@using FPLSP_Analyst.Infrastructure.ViewModels.GroupConfig
+@using FPLSP_Analyst.Infrastructure.ViewModels.Semester;
+@*@attribute [Authorize(Roles = "ADMIN")]*@
+
+@inject EntityStatusExtensions transEntityStatus;
+
+<div class="d-flex justify-space-between aligns-center">
+    <MudText Color="Color.Primary" Class="mb-5" Typo="Typo.h4">Danh sách kỳ học</MudText>
+    <MudButton Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small" Class="mb-5" OnClick="OnCreateClicked">Thêm mới <MudIcon Icon="@Icons.Material.Filled.Add"></MudIcon></MudButton>
+</div>
+
+@if (_listSemester == null || _listGroupConfig == null)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <MudGrid Class="mb-3">
+        <MudItem xs="12" md="5" lg="5">
+            <MudTextField T="string" @bind-Value="@_paginationRequest.SearchString" Placeholder="Tìm kiếm theo mã" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search"></MudTextField>
+        </MudItem>
+        <MudItem xs="12" md="2">
+            <MudSelect T="string" Label="Cấu hình chỉ số" Value="@selectedGroupConfigId" ValueChanged="OnSelectedGroupConfig">
+                @foreach (var groupConfig in _listGroupConfig)
+                {
+                    <MudSelectItem T="string" Value="@(groupConfig.Id.ToString())">@groupConfig.Code</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+    </MudGrid>
+
+    if (_listSemester.Count == 0)
+    {
+        <MudAlert Severity="Severity.Warning">Không có dữ liệu</MudAlert>
+    }
+    else
+    {
+        <MudTable Items="@_listSemester" Hover="true" Striped="true" FixedHeader="true">
+            <HeaderContent>
+                <MudTh>STT</MudTh>
+                <MudTh>Mã kỳ học</MudTh>
+                <MudTh>Mã cấu hình chỉ số</MudTh>
+                <MudTh>Bắt đầu</MudTh>
+                <MudTh>Kết thúc</MudTh>
+                <MudTh Style="text-align: center;">Hoạt động</MudTh>
+                <MudTh Style="text-align: center;">Hành động</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="STT">@(_listSemester.IndexOf(context) + 1)</MudTd>
+                <MudTd DataLabel="Mã kỳ học">@context.Code</MudTd>
+                    <MudTd DataLabel="Mã cấu hình chỉ số">@context.GroupConfigCode</MudTd>
+                    <MudTd DataLabel="Bắt đầu">@context.StartTime.ToLocalTime().ToString("hh:mm tt dd/MM/yyyy")</MudTd>
+                    <MudTd DataLabel="Kết thúc">@context.EndTime.ToLocalTime().ToString("hh:mm tt dd/MM/yyyy")</MudTd>
+
+                    @{
+                    var isActive = context.Status == EntityStatus.Active;
+                }
+                <MudTd DataLabel="Hoạt động" Style="text-align: center;">
+                    <MudSwitch Checked="@(isActive)" @onclick="@(() => OnCheckChange(context.Id, !isActive))" Color="Color.Success" UnCheckedColor="Color.Error" />
+                </MudTd>
+                <MudTd DataLabel="Hành động" Style="text-align: center;">
+                    <MudIconButton Title="Chỉnh sửa" Icon="@Icons.Material.Filled.Edit" Color="Color.Info" OnClick="()=>OnUpdateClicked(context.Id)"></MudIconButton>
+                    <MudIconButton Title="Xóa" Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="()=>OnDeleteClicked(context.Id)"></MudIconButton>
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                @if (_paginationResponse != null)
+                {
+                    <MudGrid Class="mb-3">
+                        <MudItem xs="12" Class="d-flex justify-center mt-3">
+                            @if (_paginationResponse.PageNumber <= 1)
+                            {
+                                <MudPagination Color="Color.Primary" BoundaryCount="1" Count="@(_paginationResponse!.HasNext? 2 : 1)" @bind-Selected="@_paginationRequest.PageNumber" />
+                            }
+                            else
+                            {
+                                <MudPagination Color="Color.Primary" BoundaryCount="1" Count="@(_paginationResponse!.HasNext? (_paginationResponse.PageNumber + 1) : _paginationResponse.PageNumber)" @bind-Selected="@_paginationRequest.PageNumber" />
+                            }
+                        </MudItem>
+                    </MudGrid>
+                }
+            </PagerContent>
+        </MudTable>
+    }
+
+}
+
+<MudMessageBox @ref="_mbox" Title="Xác nhận" CancelText="Hủy">
+    <MessageContent>
+        Xác nhận xóa cuộc thi!
+    </MessageContent>
+    <YesButton>
+        <MudButton Color="Color.Primary" OnClick="Delete">
+            Xác nhận
+        </MudButton>
+    </YesButton>
+</MudMessageBox>
+
+@code {
+
+    [Inject]
+    private ISemesterReadOnlyRepository _semesterReadOnlyRepository { get; set; }
+    [Inject]
+    private ISemesterReadWriteRepository _semesterReadWriteRepository { get; set; }
+    [Inject]
+    private IGroupConfigReadOnlyRepository _groupConfigReadOnlyRepository { get; set; }
+    [Inject]
+    private ILocalizationService _localizationService { get; set; }
+    [Inject]
+    private IMapper _mapper { get; set; }
+    [Inject] NavigationManager _navigationManager { get; set; }
+    [Inject] IDialogService _dialogService { get; set; }
+    MudMessageBox _mbox { get; set; }
+
+    int _confirmType { get; set; } = 0; //1:Create,2:Update,3:Delete
+
+    private CancellationToken _cancellationToken = default;
+    ViewSemesterWithPaginationRequest _paginationRequest = new();
+    SemesterDeleteRequest _deleteRequest = new();
+
+    private PaginationResponse<SemesterDto>? _paginationResponse { get; set; }
+    private List<SemesterDto>? _listSemester { get; set; }
+
+    ViewGroupConfigWithPaginationRequest _paginationGroupConfigRequest = new();
+
+    private PaginationResponse<GroupConfigDto>? _paginationGroupConfigResponse { get; set; }
+    private List<GroupConfigDto>? _listGroupConfig { get; set; }
+
+    string? selectedGroupConfigId { get; set; }
+    public string? selectedName = "Môn học";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    async Task LoadData()
+    {
+        await LoadGroupConfig();
+        await LoadSemester();
+    }
+
+    private async Task LoadSemester()
+    {
+        _paginationRequest.GroupConfigId = string.IsNullOrWhiteSpace(selectedGroupConfigId) ? null : Guid.Parse(selectedGroupConfigId);
+
+        SemesterListWithPaginationViewModel vm = new(_semesterReadOnlyRepository, _localizationService);
+        await vm.HandleAsync(_paginationRequest, _cancellationToken);
+
+        if (vm.Success)
+        {
+            _paginationResponse = (PaginationResponse<SemesterDto>)vm.Data;
+            _listSemester = _paginationResponse.Data!.ToList();
+        }
+    }
+
+    private async Task LoadGroupConfig()
+    {
+        GroupConfigListWithPaginationViewModel vm = new(_groupConfigReadOnlyRepository, _localizationService);
+        await vm.HandleAsync(_paginationGroupConfigRequest, _cancellationToken);
+
+        if (vm.Success)
+        {
+            _paginationGroupConfigResponse = (PaginationResponse<GroupConfigDto>)vm.Data;
+            _listGroupConfig = _paginationGroupConfigResponse.Data!.ToList();
+        }
+    }
+
+    async Task OnSelectedGroupConfig(string idGroupConfig)
+    {
+        selectedGroupConfigId = idGroupConfig;
+        _paginationRequest.GroupConfigId = Guid.Parse(idGroupConfig);
+
+        SemesterListWithPaginationViewModel vm = new(_semesterReadOnlyRepository, _localizationService);
+        await vm.HandleAsync(_paginationRequest, _cancellationToken);
+
+        if (vm.Success)
+        {
+            _paginationResponse = (PaginationResponse<SemesterDto>)vm.Data;
+            _listSemester = _paginationResponse.Data!.ToList();
+        }
+    }
+
+    async Task OnConfirm()
+    {
+        switch (_confirmType)
+        {
+            case 1:
+                await Create();
+                break;
+            case 2:
+                await Update();
+                break;
+            case 3:
+                await Delete();
+                break;
+            default:
+                // Handle other cases or provide a default behavior
+                break;
+        }
+    }
+
+    private async Task OnCreateClicked()
+    {
+        _confirmType = 1;
+
+        DialogOptions closeOnEscapeKey = new DialogOptions() { MaxWidth = MaxWidth.Medium, CloseOnEscapeKey = true, FullWidth = true };
+        var parameters = new DialogParameters();
+        var result = await _dialogService.Show<CreateSemester>("Thêm mới kỳ học", parameters, closeOnEscapeKey).Result;
+
+        if (!result.Canceled)
+        {
+            var success = result.Data as bool?;
+            if (success == true)
+            {
+                await LoadData();
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    async Task Create()
+    {
+    }
+
+    private async Task OnUpdateClicked(Guid id)
+    {
+        _confirmType = 2;
+
+        DialogOptions closeOnEscapeKey = new DialogOptions() { MaxWidth = MaxWidth.Medium, CloseOnEscapeKey = true, FullWidth = true };
+        var parameters = new DialogParameters();
+        parameters.Add("Id", id);
+        var result = await _dialogService.Show<UpdateSemester>("Chỉnh sửa kỳ học", parameters, closeOnEscapeKey).Result;
+
+        if (!result.Canceled)
+        {
+            var success = result.Data as bool?;
+            if (success == true)
+            {
+                await LoadData();
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    async Task Update()
+    {
+
+
+    }
+
+    private async Task OnDeleteClicked(Guid id)
+    {
+        _confirmType = 3;
+
+        _deleteRequest.Id = id;
+
+        bool? result = await _mbox.Show();
+        StateHasChanged();
+    }
+
+    async Task Delete()
+    {
+        SemesterDeleteViewModel vm = new(_semesterReadWriteRepository, _localizationService, _mapper);
+
+        await vm.HandleAsync(_deleteRequest, _cancellationToken);
+
+        await LoadSemester();
+    }
+
+    async Task OnCheckChange(Guid semesterId, bool isChecked)
+    {
+        if (isChecked)
+        {
+            SemesterUpdateViewModel vm = new(_semesterReadWriteRepository, _localizationService, _mapper);
+
+            await vm.HandleStatusChangedAsync(semesterId, _cancellationToken);
+        }
+
+        await LoadSemester();
+    }
+
+    void NavigateToDetails(string subjectId)
+    {
+        _navigationManager.NavigateTo($"/subject/details/{subjectId}");
+    }
+}
+

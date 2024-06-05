@@ -1,0 +1,162 @@
+﻿@using AutoMapper
+@using FPLSP_Analyst.Application.DataTransferObjects.GroupConfig
+@using FPLSP_Analyst.Application.DataTransferObjects.GroupConfig.Request
+@using FPLSP_Analyst.Application.DataTransferObjects.GroupConfig
+@using FPLSP_Analyst.Application.DataTransferObjects.GroupConfig.Request
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadWrite
+@using FPLSP_Analyst.Application.Interfaces.Services
+@using FPLSP_Analyst.Application.ValueObjects.Pagination
+@using FPLSP_Analyst.Infrastructure.ViewModels.GroupConfig
+@using FPLSP_Analyst.Infrastructure.ViewModels.GroupConfig
+@inject ISnackbar snackBar
+@inject IWebHostEnvironment _env
+
+@if (_groupConfigDto == null || _listGroupConfig == null)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <MudDialog>
+        <DialogContent>
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="@_groupConfigDto.Code" T="string" Label="Tên nhóm chỉ số"></MudTextField>
+                </MudItem>
+              @*   <MudItem xs="6" md="12">
+                    <MudSelect T="int" Label="Bảng" Value="@selectedTable" ValueChanged="OnSelectedTable">
+                        <MudSelectItem T="int" Value="@(0)">Chuyên ngành</MudSelectItem>
+                        <MudSelectItem T="int" Value="@(1)">Giảng viên</MudSelectItem>
+                        <MudSelectItem T="int" Value="@(2)">Môn học</MudSelectItem>
+                        <MudSelectItem T="int" Value="@(3)">Lớp học</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="6" md="12">
+                    <MudSelect T="int" Label="Chỉ số" Value="@selectedIndicator" ValueChanged="OnSelectedIndicator">
+                        <MudSelectItem T="int" Value="@(0)">% Qua môn</MudSelectItem>
+                        <MudSelectItem T="int" Value="@(1)">% Trượt</MudSelectItem>
+                        <MudSelectItem T="int" Value="@(2)">% Cấm thi</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="@predication" HelperText="value > 0 && value < 10" T="string" Label="Điều kiện yêu cầu giải trình"></MudTextField>
+                </MudItem> *@
+            </MudGrid>
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="Cancel">Hủy</MudButton>
+            <MudButton Color="Color.Primary" OnClick="UpdateClicked">Chỉnh sửa</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+@code {
+    [CascadingParameter] MudDialogInstance _mudDialog { get; set; } = null!;
+    [Parameter]
+    public Guid Id { set; get; }
+
+    [Inject] private IDialogService _dialogService { get; set; } = null!;
+    [Inject] private IGroupConfigReadOnlyRepository _groupConfigReadOnlyRepository { get; set; }
+    [Inject] private IGroupConfigReadWriteRepository _groupConfigReadWriteRepository { get; set; }
+
+    [Inject] private ILocalizationService _localizationService { get; set; }
+    [Inject] private IMapper _mapper { get; set; }
+
+    GroupConfigDto _groupConfigDto { get; set; }
+    GroupConfigViewModel _groupConfigViewModel { get; set; }
+
+    GroupConfigUpdateRequest _groupConfigUpdateRequest { get; set; } = new();
+    GroupConfigUpdateViewModel _groupConfigUpdateViewModel { get; set; }
+
+    DateTime _startTime { get; set; }
+    DateTime _endTime { get; set; }
+
+    ViewGroupConfigWithPaginationRequest _paginationGroupConfigRequest = new();
+    private PaginationResponse<GroupConfigDto>? _paginationGroupConfigResponse { get; set; }
+    private List<GroupConfigDto>? _listGroupConfig { get; set; }
+
+    int selectedTable;
+    int selectedIndicator;
+    string predication;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGroupConfig();
+        await LoadData();
+    }
+
+    async Task OnSelectedTable(int tableName)
+    {
+        selectedTable = tableName;
+    }
+
+    async Task OnSelectedIndicator(int indicator)
+    {
+        selectedIndicator = indicator;
+    }
+
+    async Task CheckIndicatorConfig()
+    {
+        _groupConfigUpdateRequest.ListConfigs = new();
+        _groupConfigUpdateRequest.ListConfigs.Add("", "");
+    }
+
+
+    private async Task LoadGroupConfig()
+    {
+        GroupConfigListWithPaginationViewModel vm = new(_groupConfigReadOnlyRepository, _localizationService);
+        await vm.HandleAsync(_paginationGroupConfigRequest, default);
+
+        if (vm.Success)
+        {
+            _paginationGroupConfigResponse = (PaginationResponse<GroupConfigDto>)vm.Data;
+            _listGroupConfig = _paginationGroupConfigResponse.Data!.ToList();
+        }
+    }
+
+    async Task LoadData()
+    {
+        _groupConfigViewModel = new(_groupConfigReadOnlyRepository, _localizationService);
+
+        await _groupConfigViewModel.HandleAsync(Id, default);
+
+        if (_groupConfigViewModel.Success)
+        {
+            _groupConfigDto = (GroupConfigDto)_groupConfigViewModel.Data!;
+        }
+    }
+
+    private async Task UpdateClicked()
+    {
+        _groupConfigUpdateRequest.Id = _groupConfigDto.Id;
+        _groupConfigUpdateRequest.Code = _groupConfigDto.Code;
+
+        bool? result = await _dialogService.ShowMessageBox(
+            "Xác nhận",
+            "Bạn có chắc muốn chỉnh sửa kỳ học này?",
+            yesText: "Xác nhận", cancelText: "Hủy");
+        
+        if (result == true)
+        {
+            _groupConfigUpdateViewModel = new(_groupConfigReadWriteRepository, _localizationService, _mapper);
+
+            await _groupConfigUpdateViewModel.HandleAsync(_groupConfigUpdateRequest, default);
+
+            if (_groupConfigUpdateViewModel.Success)
+            {
+                snackBar.Add("Chỉnh sửa kỳ học thành công!", Severity.Success);
+            }
+            else
+            {
+                snackBar.Add("Chỉnh sửa kỳ học thất bại!", Severity.Error);
+            }
+        }
+
+        await Task.Delay(1500);
+        _mudDialog.Close(DialogResult.Ok(true));
+
+        StateHasChanged();
+    }
+
+    void Cancel() => _mudDialog.Cancel();
+}

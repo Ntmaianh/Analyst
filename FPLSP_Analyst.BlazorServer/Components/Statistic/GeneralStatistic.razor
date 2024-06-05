@@ -1,0 +1,121 @@
+﻿@using FPLSP_Analyst.Application.DataTransferObjects.ForStatistic.GeneralStatistic
+@using FPLSP_Analyst.Application.DataTransferObjects.ForStatistic.GeneralStatistic.Request
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly
+@using FPLSP_Analyst.Application.Interfaces.Services
+@using FPLSP_Analyst.BlazorServer.Extensions
+@using FPLSP_Analyst.Infrastructure.ViewModels.ForStatistic
+
+<MudGrid>
+    <MudItem xs="12" md="10">
+        <MudText Class="d-flex align-center" Color="Color.Default" Typo="Typo.h6">
+            <MudIcon Color="Color.Primary" Icon="@Icons.Material.Filled.LabelImportant"></MudIcon> Tổng quan cơ sở Hà Nội
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="2">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="@RouteManager.Statistic.MajorOverview">
+            Thống kê chỉ số
+        </MudButton>
+    </MudItem>
+</MudGrid>
+
+@if (_generalStatisticDto == null)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <MudGrid Class="mb-3">
+        <MudItem xs="12" md="10">
+            @if (_hasError)
+            {
+                <MudAlert Severity="Severity.Warning">Không có dữ liệu</MudAlert>
+            }
+            else
+            {
+                <div style="height:60vh; max-height:500px;" id="general-statistic-bar"></div>
+            }
+        </MudItem>
+
+        <MudItem xs="12" md="2" Class="my-5">
+            <MudItem>
+                <MudButton Color="Color.Tertiary" Href="@RouteManager.Major.List">
+                    Danh sách chuyên ngành
+                </MudButton>
+            </MudItem>
+            <MudItem>
+                <MudButton Color="Color.Tertiary" Href="@RouteManager.Subject.List">
+                    Danh sách môn học
+                </MudButton>
+            </MudItem>
+            <MudItem>
+                <MudButton Color="Color.Tertiary" Href="@RouteManager.Lecturer.List">
+                    Danh sách giảng viên
+                </MudButton>
+            </MudItem>
+            <MudItem>
+                <MudButton Color="Color.Tertiary" Href="@RouteManager.Class.List">
+                    Danh sách lớp học
+                </MudButton>
+
+            </MudItem>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private bool _hasError = false;
+    [Inject]
+    IJSRuntime jsRuntime { get; set; }
+    [Inject] private IGeneralStatisticReadOnlyResponsitory _generalStatisticReadOnlyResponsitory { get; set; }
+    [Inject] private ILocalizationService _localizationService { get; set; }
+    private CancellationToken _cancellationToken = default;
+
+    ViewGeneralStatisticWithPaginationRequest _viewGeneralStatisticWithPaginationRequest = new();
+    int startTime;
+    int endTime;
+
+    private List<GeneralStatisticDto>? _generalStatisticDto { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGeneral();
+
+    }
+
+    private async Task LoadGeneral()
+    {
+        GeneralStatisticViewModel vm = new(_generalStatisticReadOnlyResponsitory, _localizationService);
+        await vm.HandleAsync(_viewGeneralStatisticWithPaginationRequest, _cancellationToken);
+        if (vm.Success)
+        {
+            _generalStatisticDto = (List<GeneralStatisticDto>)vm.Data!;
+
+            if (_generalStatisticDto == null)
+            {
+                _hasError = true;
+            }
+            else
+            {
+                _hasError = false;
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            if (_generalStatisticDto != null)
+            {
+                var labels = _generalStatisticDto.Select(gs => gs.SemesterCode).ToList();
+                var datasets = new string[] { "Chuyên ngành", "Môn học", "Giảng viên", "Lớp học" };
+                var s1 = _generalStatisticDto.Select(gs => gs.MajorTotal).ToList();
+                var s2 = _generalStatisticDto.Select(gs => gs.SubjectTotal).ToList();
+                var s3 = _generalStatisticDto.Select(gs => gs.LecturerTotal).ToList();
+                var s4 = _generalStatisticDto.Select(gs => gs.ClassTotal).ToList();
+                await jsRuntime.InvokeVoidAsync("createGeneralStatisticBarChart", labels, datasets, CustomPalette.GeneralStatisticColorPallete, s1, s2, s3, s4);
+            }
+        }
+    }
+}
+

@@ -1,0 +1,41 @@
+﻿@page "/"
+@using FPLSP_Token;
+@using Microsoft.AspNetCore.Authentication;
+@using Microsoft.AspNetCore.Authentication.Cookies;
+@inject IConfiguration _configuration
+@inject NavigationManager _navigationManager
+@inject IHttpContextAccessor _httpContextAccessor
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly
+@inject ICurrentUser user;
+@code {
+    protected async override Task OnInitializedAsync()
+    {      
+        int check = 0;
+        var tokenString = _httpContextAccessor.HttpContext.Request.Query["token"];
+        if (tokenString.Count() > 0 && !_httpContextAccessor.HttpContext.User.Identity.IsAuthenticated)
+        {
+            check = 1;
+            // lưu token vào cookie
+            _httpContextAccessor.HttpContext.Response.Cookies.Append("token", tokenString);
+            await GetUserFromToken(tokenString);
+        }
+        if (!_httpContextAccessor.HttpContext.User.Identity.IsAuthenticated && check == 0)
+        {
+            _navigationManager.NavigateTo("Account/Authenticator", true);
+        }
+
+        _navigationManager.NavigateTo("home");
+    }
+    //get thông tin user từ token
+    async Task GetUserFromToken(string token)
+    {       
+        var principal = TokenDecoding.DecodeToken(token);
+        var authProperties = new AuthenticationProperties
+            {
+                // Cho phép refresh thông tin user
+                AllowRefresh = true
+            };
+        await _httpContextAccessor.HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
+            principal, authProperties);
+    }
+}

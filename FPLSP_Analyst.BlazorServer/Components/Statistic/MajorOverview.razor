@@ -1,0 +1,301 @@
+﻿@page "/major-overview"
+
+@using FPLSP_Analyst.Application.DataTransferObjects.ForSelect
+@using FPLSP_Analyst.Application.DataTransferObjects.MajorIndicator
+@using FPLSP_Analyst.Application.DataTransferObjects.MajorIndicator.request
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly
+@using FPLSP_Analyst.Application.Interfaces.Services
+@using FPLSP_Analyst.Application.ValueObjects.Pagination
+@using FPLSP_Analyst.Infrastructure.ViewModels.ForSelect
+@using FPLSP_Analyst.Infrastructure.ViewModels.MajorIndicator
+@using FPLSP_Analyst.BlazorServer.Extensions
+
+<MudText Class="d-flex align-center" Color="Color.Default" Typo="Typo.h6"><MudIcon Color="Color.Primary" Icon="@Icons.Material.Filled.LabelImportant"></MudIcon> Tổng quan chỉ số của chuyên ngành</MudText>
+
+@if (_listSemesterForSelectDto == null)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" md="10">
+            <MudGrid Class="mb-3">
+                <MudItem xs="12" md="4" style=" padding-top:20px; padding-bottom:15px">
+                    <MudSelect T="string" Label="Kì học" Value="@selectedSemesterId" ValueChanged="OnSelectedSemester">
+                        @foreach (var semester in _listSemesterForSelectDto)
+                        {
+                            <MudSelectItem T="string" Value="@(semester.Id.ToString())">@semester.Code</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="4" Style=" padding-top:20px; padding-bottom:15px">
+                    <MudSelect T="string" Label="Chuyên ngành" HelperText="@(selectedSemesterId == null ?"*Chọn kì học":"")" Value="@selectedMajorId" ValueChanged="OnSelectedMajor">
+                        @if (_listMajorIndicatorDto != null)
+                        {
+                            @foreach (var major in _listMajorIndicatorDto)
+                            {
+                                <MudSelectItem T="string" Value="@(major.MajorId.ToString())">@major.MajorCode</MudSelectItem>
+                            }
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="4" Style=" padding-top:20px; padding-bottom:15px">
+                    <MudSelect T="string" Label="Chọn nhãn" Value="@selectedName" HelperText="@(selectedMajorId == null ?"*Chọn chuyên ngành":"")" ValueChanged="(str)=>OnSelectedName(str)">
+                        <MudSelectItem T="string" Value="@("Môn học")"></MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Lớp học")"></MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Sinh viên")"></MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudItem>
+        <MudItem xs="2" lg="2" md="2">
+        </MudItem>
+    </MudGrid>
+
+    @if (_selectedMajorIndicatorDto != null && selectedName != null)
+    {
+        <MudGrid Class="mb-3">
+            <MudItem xs="12" lg="10" md="10">
+                <MudText Color="Color.Tertiary" Typo="Typo.subtitle2" Style="text-align:center">Biểu đồ chỉ số của các @($"{selectedName.ToLower()}") chuyên ngành @(_selectedMajorIndicatorDto!.MajorCode) kì học @(_selectedMajorIndicatorDto.SemesterCode)</MudText>
+            </MudItem>
+            <MudItem xs="0" lg="2" md="2">
+            </MudItem>
+        </MudGrid>
+    }
+
+    @if (_listSemesterForSelectDto.Count == 0)
+    {
+        <MudAlert Severity="Severity.Warning">Không có dữ liệu</MudAlert>
+    }
+    else
+    {
+        <MudGrid Class="mt-5 mb-3">
+            <MudItem xs="12" md="10">
+                <MudGrid Class="mb-3">
+                    <MudItem xs="12" md="6">
+                        <div id="major-overview-polar"></div>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <div id="major-overview-bar"></div>
+                    </MudItem>
+                </MudGrid>
+            </MudItem>
+
+            <MudItem xs="12" lg="2" md="2" Class="my-5">
+                <MudItem>
+                    <MudButton Color="Color.Tertiary" Href="/major/indicator">
+                        Chỉ số chuyên ngành
+                    </MudButton>
+                </MudItem>
+                <MudItem>
+                    <MudButton Color="Color.Tertiary" Href="/subject/indicator">
+                        Chỉ số môn học
+                    </MudButton>
+                </MudItem>
+                <MudItem>
+                    <MudButton Color="Color.Tertiary" Href="/class/indicator">
+                        Chỉ số lớp học
+                    </MudButton>
+
+                </MudItem>
+                <MudItem>
+                    <MudButton Color="Color.Tertiary" Href="/lecturer/indicator">
+                        Chỉ số giảng viên
+                    </MudButton>
+                </MudItem>
+            </MudItem>
+        </MudGrid>
+    }
+}
+
+@code {
+    [Inject]
+    IJSRuntime jsRuntime { get; set; }
+
+    [Inject]
+    IMajorIndicatorReadOnlyRepository _majorIndicatorReadOnlyRepository { get; set; }
+
+    [Inject]
+    ISemesterReadOnlyRepository _semesterReadOnlyRepository { get; set; }
+    [Inject]
+    IMajorReadOnlyRepository _majorReadOnlyRepository { get; set; }
+
+    [Inject]
+    ILocalizationService _localizationService { get; set; }
+
+    ViewMajorIndicatorWithPaginationRequest _viewMajorIndicatorWithPaginationRequest = new();
+
+    List<MajorIndicatorDto>? _listMajorIndicatorDto { get; set; }
+    List<SemesterForSelectDto>? _listSemesterForSelectDto { get; set; }
+
+    MajorIndicatorDto? _selectedMajorIndicatorDto { get; set; }
+
+    CancellationToken _cancellationToken = default;
+    string? selectedSemesterId { get; set; }
+    string? selectedMajorId { get; set; }
+    public string selectedName = "Môn học";
+    bool _hasError = false;
+    private string[] dataLabels = { "Trượt", "Qua môn", "Cấm thi" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSemesterForSelect();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            if (string.IsNullOrWhiteSpace(selectedSemesterId))
+            {
+                if (_listSemesterForSelectDto != null)
+                {
+                    if (_listSemesterForSelectDto!.Count > 0)
+                    {
+                        await OnSelectedSemester(_listSemesterForSelectDto.FirstOrDefault()!.Id.ToString());
+
+                        StateHasChanged();
+
+                        if (string.IsNullOrWhiteSpace(selectedMajorId))
+                        {
+                            if (_listMajorIndicatorDto != null)
+                            {
+                                if (_listMajorIndicatorDto!.Count > 0)
+                                {
+                                    OnSelectedMajor(_listMajorIndicatorDto.FirstOrDefault()!.MajorId.ToString()!);
+                                    await OnSelectedName("Môn học");
+
+                                    StateHasChanged();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+
+    async Task LoadSemesterForSelect()
+    {
+        SemesterForSelectViewModel vm = new(_semesterReadOnlyRepository, _localizationService);
+
+        await vm.HandleAsync(new(), _cancellationToken);
+
+        if (true)
+        {
+            _listSemesterForSelectDto = (List<SemesterForSelectDto>)vm.Data;
+        }
+        else
+        {
+            _hasError = true;
+        }
+    }
+
+    async Task OnSelectedSemester(string idSemester)
+    {
+        selectedSemesterId = idSemester;
+        _viewMajorIndicatorWithPaginationRequest.SemesterId = Guid.Parse(idSemester);
+
+        MajorIndicatorListWithPaginationViewModel vm = new(_majorIndicatorReadOnlyRepository, _localizationService);
+        await vm.HandleAsync(_viewMajorIndicatorWithPaginationRequest, _cancellationToken);
+        if (vm.Success)
+        {
+            PaginationResponse<MajorIndicatorDto> _paginationResponse = new PaginationResponse<MajorIndicatorDto>();
+            _paginationResponse = (PaginationResponse<MajorIndicatorDto>)vm.Data;
+            _listMajorIndicatorDto = _paginationResponse.Data!.ToList();
+        }
+        else
+        {
+            _hasError = true;
+        }
+    }
+
+    public async Task OnSelectedMajor(string majorId)
+    {
+        selectedMajorId = majorId;
+
+        await OnSelectedName(selectedName);
+    }
+
+    async Task OnSelectedName(string str)
+    {
+        selectedName = str;
+
+        _selectedMajorIndicatorDto = _listMajorIndicatorDto!.FirstOrDefault(x => x.MajorId.ToString() == selectedMajorId);
+
+        float[] dataForPolar;
+        int[] dataForBar;
+
+        if (_selectedMajorIndicatorDto != null)
+        {
+            switch (str)
+            {
+                case "Môn học":
+                    dataForPolar = new float[]
+                    {
+                        _selectedMajorIndicatorDto.SubjectGreaterThan20PercentBannedPercent,
+                        _selectedMajorIndicatorDto.SubjectGreaterThan10PercentBannedPercent,
+                        _selectedMajorIndicatorDto.SubjectLessThan3PercentBannedPercent
+                    };
+
+                    dataForBar = new int[]
+                    {
+                        _selectedMajorIndicatorDto.SubjectGreaterThan20PercentBannedNumber,
+                        _selectedMajorIndicatorDto.SubjectGreaterThan10PercentBannedNumber,
+                        _selectedMajorIndicatorDto.SubjectLessThan3PercentBannedNumber
+                    };
+
+                    await GenerateCharts(dataLabels, dataForPolar, dataForBar);
+                    break;
+                case "Lớp học":
+                    dataForPolar = new float[]
+                    {
+                        _selectedMajorIndicatorDto.ClassGreaterThan20PercentBannedPercent,
+                        _selectedMajorIndicatorDto.ClassGreaterThan10PercentBannedPercent,
+                        _selectedMajorIndicatorDto.ClassLessThan3PercentBannedPercent
+                    };
+
+                    dataForBar = new int[]
+                    {
+                        _selectedMajorIndicatorDto.ClassGreaterThan20PercentBannedNumber,
+                        _selectedMajorIndicatorDto.ClassGreaterThan10PercentBannedNumber,
+                        _selectedMajorIndicatorDto.ClassLessThan3PercentBannedNumber
+                    };
+
+                    await GenerateCharts(dataLabels, dataForPolar, dataForBar);
+                    break;
+                case "Sinh viên":
+
+                    dataForPolar = new float[]
+                    {
+                        _selectedMajorIndicatorDto.StudentPassedPercent,
+                        _selectedMajorIndicatorDto.StudentFailedPercent,
+                        _selectedMajorIndicatorDto.StudentBannedPercent
+                    };
+
+                    dataForBar = new int[]
+                    {
+                        _selectedMajorIndicatorDto.StudentPassedNumber,
+                        _selectedMajorIndicatorDto.StudentFailedNumber,
+                        _selectedMajorIndicatorDto.StudentBannedNumber
+                    };
+
+                    await GenerateCharts(dataLabels, dataForPolar, dataForBar);
+                    break;
+                default:
+                    break;
+            }
+
+        }
+    }
+
+    async Task GenerateCharts(string[] dataLabels, float[] dataForPolar, int[] dataForBar)
+    {
+        await jsRuntime.InvokeVoidAsync("createMajorOverviewPolarChart", CustomPalette.MajorOverviewColorPallete, dataLabels, dataForPolar);
+        await jsRuntime.InvokeVoidAsync("createMajorOverviewBarChart", CustomPalette.MajorOverviewColorPallete, dataLabels, dataForBar);
+    }
+}
+
+

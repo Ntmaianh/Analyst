@@ -1,0 +1,79 @@
+﻿@page "/home"
+@using FPLSP_Analyst.Application.DataTransferObjects.Semester
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadWrite
+@using FPLSP_Analyst.Application.Interfaces.Services
+@using FPLSP_Analyst.Application.ValueObjects.Pagination
+@using FPLSP_Analyst.Application.ViewModels.Excels.Mics;
+@using FPLSP_Analyst.BlazorServer.Components
+@using FPLSP_Analyst.BlazorServer.Components.Statistic
+@using FPLSP_Analyst.Domain.Enums
+@using FPLSP_Analyst.Infrastructure.ViewModels.Semester
+@using Microsoft.AspNetCore.Components.Web
+@*@attribute [Authorize(Roles = "ADMIN")]*@
+
+<MudText Color="Color.Primary" Class="mb-5" Typo="Typo.h4">Trang chủ</MudText>
+
+<CustomExcelImport Function="@(funcName)" Parameters="@(listExcelParams)" Enable="@isEnableExcelImport" OnClose="@(() => {isEnableExcelImport = false; _navigationManager.NavigateTo(_navigationManager.Uri, forceLoad: true);})" />
+
+<MudMenu Dense AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.BottomCenter">
+     <ActivatorContent>
+         <MudChip Icon="@Icons.Material.Filled.FileOpen" Color="Color.Success">Nhập file Excel</MudChip>
+     </ActivatorContent>
+     <ChildContent>
+         <MudMenuItem Icon="@Icons.Material.Filled.FileUpload" OnClick="@(async() => { if(await CheckSemester()){ isEnableExcelImport = true; funcName = "MajorIndicator";}})">Chuyên ngành</MudMenuItem>
+         <MudMenuItem Icon="@Icons.Material.Filled.FileUpload" OnClick="@(async() => { if(await CheckSemester()){ isEnableExcelImport = true; funcName = "SubjectIndicator";}})">Môn học</MudMenuItem>
+         <MudMenuItem Icon="@Icons.Material.Filled.FileUpload" OnClick="@(async() => { if(await CheckSemester()){ isEnableExcelImport = true; funcName = "LecturerIndicator";}})">Giảng viên</MudMenuItem>
+         <MudMenuItem Icon="@Icons.Material.Filled.FileUpload" OnClick="@(async() => { if(await CheckSemester()){ isEnableExcelImport = true; funcName = "ClassIndicator";}})">Lớp học</MudMenuItem>
+     </ChildContent>
+ </MudMenu>
+
+ <MudPaper Elevation="3" Class="pa-4 my-5">
+     <GeneralStatistic />
+ </MudPaper>
+
+ @*  <MudPaper Elevation="3" Class="pa-4 my-5">
+     <MajorOverview />
+ </MudPaper> *@
+
+ @code {
+    #region
+    private List<ExcelParameterVM> listExcelParams = new();
+    [Inject]
+    private ISemesterReadOnlyRepository _semesterReadOnlyRepository { get; set; }
+    [Inject]
+    private ILocalizationService _localizationService { get; set; }
+    [Inject]
+    private ISnackbar _snackBar { get; set; }
+    [Inject]
+    NavigationManager _navigationManager { get; set; }
+
+    private string funcName = "MajorIndicator";
+    private bool isEnableExcelImport = false;
+    private bool isEnableExcelExport = false;
+    private bool isEnableExcelExportTemplate = false;
+
+    async Task<bool> CheckSemester()
+    {
+        SemesterListWithPaginationViewModel vm = new(_semesterReadOnlyRepository, _localizationService);
+        await vm.HandleAsync(new(), default);
+
+        if (vm.Success)
+        {
+            if (((PaginationResponse<SemesterDto>)(vm.Data)).Data == null || ((PaginationResponse<SemesterDto>)vm.Data).Data.Where(c => c.StartTime < DateTimeOffset.Now && DateTimeOffset.Now < c.EndTime && c.Status == EntityStatus.Active).ToList().Count == 0)
+            {
+                _snackBar.Add("Không có kỳ học hợp lệ!", Severity.Error);
+                return false;
+            }
+        }
+        else
+        {
+            _snackBar.Add("Không có kỳ học hợp lệ!", Severity.Error);
+            return false;
+        }
+
+        return true;
+    }
+
+    #endregion
+}

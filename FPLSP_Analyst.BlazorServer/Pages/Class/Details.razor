@@ -1,0 +1,95 @@
+﻿@page "/class/details/{classId}"
+@using FPLSP_Analyst.Application.DataTransferObjects.Class.Request;
+@using FPLSP_Analyst.Application.DataTransferObjects.Class;
+@using FPLSP_Analyst.Application.DataTransferObjects.ClassIndicator.Request;
+@using FPLSP_Analyst.Application.DataTransferObjects.ClassIndicator;
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly;
+@using FPLSP_Analyst.Application.Interfaces.Services;
+@using FPLSP_Analyst.Application.ValueObjects.Pagination;
+@using FPLSP_Analyst.Domain.Entities;
+@using FPLSP_Analyst.Domain.Enums;
+@using FPLSP_Analyst.Infrastructure.Extensions;
+@using FPLSP_Analyst.Infrastructure.ViewModels.Class;
+@using FPLSP_Analyst.Infrastructure.ViewModels.ClassIndicator;
+@inject EntityStatusExtensions transEntityStatus;
+@*@attribute [Authorize(Roles = "ADMIN")]*@
+
+<MudText Color="Color.Primary" Class="mb-5" Typo="Typo.h4">Thông tin chi tiết các lớp</MudText>
+
+@if (_classDetailsDto == null)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+@*     if (_classDetailsDto.Count == 0)
+    {
+        <MudAlert Severity="Severity.Warning">Không có dữ liệu</MudAlert>
+    }
+    else
+    { *@
+    @if (_classDetailsDto != null)
+        {
+            <MudGrid Class="mb-3">
+                <MudItem xs="12" md="2" Style="margin-top:32px">
+                    <MudSimpleTable>
+                        <MudTr>
+                            <MudTd>Mã lớp</MudTd>
+                        <MudTd DataLabel="ClassCode">@_classDetailsDto.Code</MudTd>
+                            </MudTr>
+                            <MudTr>
+                                <MudTd>Môn học</MudTd>
+                            <MudTd DataLabel="ClassName">@_classDetailsDto.SubjectCode</MudTd>
+                            </MudTr>
+                            <MudTr>
+                                <MudTd>Trạng thái</MudTd>
+                            <MudTd>@transEntityStatus.ConvertForGeneral(_classDetailsDto.Status)</MudTd>
+                            </MudTr>
+                        </MudSimpleTable>
+                    </MudItem>
+                    <MudItem xs="12" md="10">
+                        <MudText Typo="Typo.h6" Color="Color.Inherit">Các chỉ số chi tiết của lớp từng kì học</MudText>
+                    <MudTable Items="@(new List<ClassDetailsDto>(){_classDetailsDto})" Hover="true" Striped="true" FixedHeader="true">
+                            <HeaderContent>
+                                <MudTh>STT</MudTh>
+                                <MudTh>Kỳ học</MudTh>
+                                <MudTh>Tổng số sinh viên</MudTh>
+                                <MudTh>Số sinh viên qua môn</MudTh>
+                                <MudTh>Số sinh viên cấm thi</MudTh>
+                                <MudTh>Số sinh viên trượt</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>1</MudTd>
+                            <MudTd DataLabel="Semester">@context.SemesterCode</MudTd>
+                            <MudTd DataLabel="StudentTotalNumber">@context.StudentTotalNumber</MudTd>
+                            <MudTd DataLabel="StudentPassedNumber">@context.StudentPassedNumber@("/")@context.StudentTotalNumber@(" (")@context.StudentPassedPercent.ToString("0.00\\%\\)")</MudTd>
+                                <MudTd DataLabel="StudentBannedNumber">@context.StudentBannedNumber@("/")@context.StudentTotalNumber@(" (")@context.StudentBannedPercent.ToString("0.00\\%\\)")</MudTd>
+                                <MudTd DataLabel="StudentFailedNumber">@context.StudentFailedNumber@("/")@context.StudentTotalNumber@(" (")@context.StudentFailedPercent.ToString("0.00\\%\\)")</MudTd>
+                            </RowTemplate>
+                    </MudTable>
+                </MudItem>
+            </MudGrid>
+        @* } *@
+    }
+}
+@code {
+    [Parameter]
+    public string classId { set; get; }
+    [Inject] private IClassReadOnlyRepository _classReadOnlyRepository { get; set; }
+    [Inject] private ILocalizationService _localizationService { get; set; }
+    private CancellationToken _cancellationToken = default;
+    private ClassDetailsDto? _classDetailsDto { get; set; }
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadClass();
+    }
+    private async Task LoadClass()
+    {
+        ClassDetailsViewModel vm = new(_classReadOnlyRepository, _localizationService);
+        await vm.HandleAsync(Guid.Parse(classId), _cancellationToken);
+        if (vm.Success)
+        {
+            _classDetailsDto = (ClassDetailsDto)vm.Data;
+        }
+    }
+}

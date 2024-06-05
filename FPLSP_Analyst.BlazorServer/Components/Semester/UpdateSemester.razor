@@ -1,0 +1,149 @@
+﻿@using AutoMapper
+@using FPLSP_Analyst.Application.DataTransferObjects.GroupConfig
+@using FPLSP_Analyst.Application.DataTransferObjects.GroupConfig.Request
+@using FPLSP_Analyst.Application.DataTransferObjects.Semester
+@using FPLSP_Analyst.Application.DataTransferObjects.Semester.Request
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadWrite
+@using FPLSP_Analyst.Application.Interfaces.Services
+@using FPLSP_Analyst.Application.ValueObjects.Pagination
+@using FPLSP_Analyst.Infrastructure.ViewModels.GroupConfig
+@using FPLSP_Analyst.Infrastructure.ViewModels.Semester
+@inject ISnackbar snackBar
+@inject IWebHostEnvironment _env
+
+@if (_semesterDto == null || _listGroupConfig == null)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <MudDialog>
+        <DialogContent>
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="@_semesterDto.Code" T="string" Label="Tên kỳ học"></MudTextField>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField T="DateTime" Format="s" @bind-Value="@_startTime" Label="Thời gian bắt đầu" InputType="InputType.DateTimeLocal" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField T="DateTime" Format="s" @bind-Value="@_endTime" Label="Thời gian kết thúc" InputType="InputType.DateTimeLocal" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect T="Guid" Label="Cấu hình chỉ số" Value="@_semesterDto.GroupConfigId" ValueChanged="OnSelectedGroupConfig">
+                        @foreach (var groupConfig in _listGroupConfig)
+                        {
+                            <MudSelectItem T="Guid" Value="@(groupConfig.Id)">@groupConfig.Code</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>  
+            </MudGrid>
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="Cancel">Hủy</MudButton>
+            <MudButton Color="Color.Primary" OnClick="UpdateClicked">Chỉnh sửa</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+@code {
+    [CascadingParameter] MudDialogInstance _mudDialog { get; set; } = null!;
+    [Parameter]
+    public Guid Id { set; get; }
+
+    [Inject] private IDialogService _dialogService { get; set; } = null!;
+    [Inject] private ISemesterReadOnlyRepository _semesterReadOnlyRepository { get; set; }
+    [Inject] private ISemesterReadWriteRepository _semesterReadWriteRepository { get; set; }
+    [Inject] private IGroupConfigReadOnlyRepository _groupConfigReadOnlyRepository { get; set; }
+
+    [Inject] private ILocalizationService _localizationService { get; set; }
+    [Inject] private IMapper _mapper { get; set; }
+
+    SemesterDto _semesterDto { get; set; }
+    SemesterViewModel _semesterViewModel { get; set; }
+
+    SemesterUpdateRequest _semesterUpdateRequest { get; set; } = new();
+    SemesterUpdateViewModel _semesterUpdateViewModel { get; set; }
+
+    DateTime _startTime { get; set; }
+    DateTime _endTime { get; set; }
+
+    ViewGroupConfigWithPaginationRequest _paginationGroupConfigRequest = new();
+    private PaginationResponse<GroupConfigDto>? _paginationGroupConfigResponse { get; set; }
+    private List<GroupConfigDto>? _listGroupConfig { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGroupConfig();
+        await LoadData();
+
+        _startTime = _semesterDto.StartTime.ToLocalTime().DateTime;
+        _endTime = _semesterDto.EndTime.ToLocalTime().DateTime;
+    }
+
+    private async Task LoadGroupConfig()
+    {
+        GroupConfigListWithPaginationViewModel vm = new(_groupConfigReadOnlyRepository, _localizationService);
+        await vm.HandleAsync(_paginationGroupConfigRequest, default);
+
+        if (vm.Success)
+        {
+            _paginationGroupConfigResponse = (PaginationResponse<GroupConfigDto>)vm.Data;
+            _listGroupConfig = _paginationGroupConfigResponse.Data!.ToList();
+        }
+    }
+
+    async Task OnSelectedGroupConfig(Guid idGroupConfig)
+    {
+        _semesterDto.GroupConfigId = idGroupConfig;
+    }
+
+    async Task LoadData()
+    {
+        _semesterViewModel = new(_semesterReadOnlyRepository, _localizationService);
+
+        await _semesterViewModel.HandleAsync(Id, default);
+
+        if (_semesterViewModel.Success)
+        {
+            _semesterDto = (SemesterDto)_semesterViewModel.Data!;
+        }
+    }
+
+    private async Task UpdateClicked()
+    {
+        _semesterUpdateRequest.Id = _semesterDto.Id;
+        _semesterUpdateRequest.Code = _semesterDto.Code;
+        _semesterUpdateRequest.GroupConfigId = _semesterDto.GroupConfigId;
+        _semesterUpdateRequest.StartTime = new DateTimeOffset(_startTime, TimeZoneInfo.Local.GetUtcOffset(_startTime));
+        _semesterUpdateRequest.EndTime = new DateTimeOffset(_endTime, TimeZoneInfo.Local.GetUtcOffset(_endTime));
+
+        bool? result = await _dialogService.ShowMessageBox(
+            "Xác nhận",
+            "Bạn có chắc muốn chỉnh sửa kỳ học này?",
+            yesText: "Xác nhận", cancelText: "Hủy");
+        
+        if (result == true)
+        {
+            _semesterUpdateViewModel = new(_semesterReadWriteRepository, _localizationService, _mapper);
+
+            await _semesterUpdateViewModel.HandleAsync(_semesterUpdateRequest, default);
+
+            if (_semesterUpdateViewModel.Success)
+            {
+                snackBar.Add("Chỉnh sửa kỳ học thành công!", Severity.Success);
+            }
+            else
+            {
+                snackBar.Add("Chỉnh sửa kỳ học thất bại!", Severity.Error);
+            }
+        }
+
+        await Task.Delay(1500);
+        _mudDialog.Close(DialogResult.Ok(true));
+
+        StateHasChanged();
+    }
+
+    void Cancel() => _mudDialog.Cancel();
+}

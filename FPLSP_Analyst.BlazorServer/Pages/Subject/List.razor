@@ -1,0 +1,144 @@
+﻿@page "/subject/list"
+@using FPLSP_Analyst.Application.DataTransferObjects.ForSelect
+@using FPLSP_Analyst.Application.DataTransferObjects.Subject.Request;
+@using FPLSP_Analyst.Application.DataTransferObjects.Subject;
+@using FPLSP_Analyst.Application.DataTransferObjects.SubjectIndicator;
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly;
+@using FPLSP_Analyst.Application.Interfaces.Services;
+@using FPLSP_Analyst.Application.ValueObjects.Pagination;
+@using FPLSP_Analyst.Domain.Entities;
+@using FPLSP_Analyst.Domain.Enums;
+@using FPLSP_Analyst.Infrastructure.Extensions;
+@using FPLSP_Analyst.Infrastructure.ViewModels.ForSelect
+@using FPLSP_Analyst.Infrastructure.ViewModels.Subject;
+@using FPLSP_Analyst.Infrastructure.ViewModels.SubjectIndicator;
+@*@attribute [Authorize(Roles = "ADMIN")]*@
+
+@inject EntityStatusExtensions transEntityStatus;
+
+<MudText Color="Color.Primary" Class="mb-5" Typo="Typo.h4">Thông tin cơ bản các môn học</MudText>
+
+@if (_paginationResponse == null)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <MudGrid Class="mb-3">
+        <MudItem xs="12" md="5" lg="5">
+            <MudTextField T="string" @bind-Value="@_paginationRequest.SearchString" Placeholder="Tìm kiếm theo mã, tên" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search"></MudTextField>
+        </MudItem>
+        <MudItem xs="12" md="2">
+            <MudSelect T="string" Label="Chuyên ngành" Value="@selectedMajorId" ValueChanged="OnSelectedMajor">
+                @foreach (var major in _listMajorForSelectDto)
+                {
+                    <MudSelectItem T="string" Value="@(major.Id.ToString())">@major.Code</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+    </MudGrid>
+    if (_listSubject == null || _listSubject.Count == 0)
+    {
+        <MudAlert Severity="Severity.Warning">Không có dữ liệu</MudAlert>
+    }
+    else
+    {
+        <MudTable Items="@_paginationResponse.Data!.ToList()" Hover="true" Striped="true" FixedHeader="true">
+            <HeaderContent>
+                <MudTh>STT</MudTh>
+                <MudTh>Mã môn</MudTh>
+                <MudTh>Tên môn</MudTh>
+                <MudTh>Chuyên ngành</MudTh>
+                <MudTh Style="text-align: center;">Hành động</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="STT">@(_listSubject.IndexOf(context) + 1)</MudTd>
+                <MudTd DataLabel="Mã môn">@context.Code</MudTd>
+                    <MudTd DataLabel="Tên môn">@context.Name</MudTd>
+                    <MudTd DataLabel="Chuyên ngành">@context.MajorCode</MudTd>
+                    <MudTd DataLabel="" Style="text-align: center;"><MudIconButton Title="Xem chi tiết" Icon="@Icons.Material.Filled.ViewTimeline" OnClick="()=>NavigateToDetails(context.Id.ToString())"></MudIconButton></MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    @if (_paginationResponse != null)
+                {
+                    <MudGrid Class="mb-3">
+                        <MudItem xs="12" Class="d-flex justify-center mt-3">
+                            @if (_paginationResponse.PageNumber <= 1)
+                            {
+                                <MudPagination Color="Color.Primary" BoundaryCount="1" Count="@(_paginationResponse!.HasNext? 2 : 1)" @bind-Selected="@_paginationRequest.PageNumber" />
+                            }
+                            else
+                            {
+                                <MudPagination Color="Color.Primary" BoundaryCount="1" Count="@(_paginationResponse!.HasNext? (_paginationResponse.PageNumber + 1) : _paginationResponse.PageNumber)" @bind-Selected="@_paginationRequest.PageNumber" />
+                            }
+                        </MudItem>
+                    </MudGrid>
+                }
+            </PagerContent>
+        </MudTable>
+    }
+
+}
+
+@code {
+
+    [Inject]
+    private ISubjectReadOnlyRepository _subjectReadOnlyRepository { get; set; }
+    [Inject] private IMajorReadOnlyRepository _majorReadOnlyRepository { get; set; }
+    [Inject]
+    private ILocalizationService _localizationService { get; set; }
+    [Inject] NavigationManager _navigationManager { get; set; }
+    private CancellationToken _cancellationToken = default;
+    ViewSubjectWithPaginationRequest _paginationRequest = new();
+
+    private PaginationResponse<SubjectDto>? _paginationResponse { get; set; }
+    private List<SubjectDto> _listSubject { get; set; }
+
+    List<MajorForSelectDto>? _listMajorForSelectDto { get; set; }
+
+    string? selectedMajorId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMajorForSelect();
+        await LoadSubject();
+    }
+    private async Task LoadSubject()
+    {
+        _paginationRequest.MajorId = string.IsNullOrWhiteSpace(selectedMajorId) ? null : Guid.Parse(selectedMajorId);
+
+        SubjectListWithPaginationViewModel vm = new(_subjectReadOnlyRepository, _localizationService);
+        await vm.HandleAsync(_paginationRequest, _cancellationToken);
+        if (vm.Success)
+        {
+            _paginationResponse = (PaginationResponse<SubjectDto>)vm.Data;
+            _listSubject = _paginationResponse.Data!.ToList();
+        }
+    }
+
+    async Task LoadMajorForSelect()
+    {
+        MajorForSelectViewModel vm = new(_majorReadOnlyRepository, _localizationService);
+
+        await vm.HandleAsync(new(), _cancellationToken);
+
+        if (true)
+        {
+            _listMajorForSelectDto = (List<MajorForSelectDto>)vm.Data;
+        }
+    }
+
+    async Task OnSelectedMajor(string idMajor)
+    {
+        selectedMajorId = idMajor;
+
+        await LoadSubject();
+    }
+
+
+    void NavigateToDetails(string subjectId)
+    {
+        _navigationManager.NavigateTo($"/subject/details/{subjectId}");
+    }
+}
+

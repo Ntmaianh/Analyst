@@ -1,0 +1,131 @@
+﻿@page "/profile"
+
+@using FPLSP_Analyst.Application.DataTransferObjects.Lecturer;
+@using FPLSP_Analyst.Application.DataTransferObjects.Lecturer.Request;
+@using FPLSP_Analyst.Application.DataTransferObjects.LecturerIndicator;
+@using FPLSP_Analyst.Application.Interfaces.Repositories.ReadOnly;
+@using FPLSP_Analyst.Application.Interfaces.Services;
+@using FPLSP_Analyst.Application.ValueObjects.Pagination;
+@using FPLSP_Analyst.Domain.Enums;
+@using FPLSP_Analyst.Infrastructure.Extensions;
+@using FPLSP_Analyst.Infrastructure.ViewModels.Lecturer;
+@inject EntityStatusExtensions transEntityStatus;
+@inject ICurrentUser _currentUser;
+@attribute [Authorize(Roles = "ADMIN, LECTURER")]
+
+<MudText Color="Color.Primary" Class="mb-5" Typo="Typo.h4">Giảng viên</MudText>
+
+@if (_lecturerDetailsDtos == null)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    @if (_lecturerDetailsDtos != null)
+    {
+        <MudGrid Class="mb-3">
+@*             <MudItem xs="12" md="2">
+                <MudText Typo="Typo.h6" Color="Color.Inherit"><br /></MudText>
+                <MudSimpleTable>
+                    <MudTr>
+                        <MudTd>Tên đăng nhập</MudTd>
+                        <MudTd>@_lecturerDetailsDtos.Username</MudTd>
+                        </MudTr>
+                        <MudTr>
+                            <MudTd>Trạng thái</MudTd>
+                            <MudTd>@transEntityStatus.ConvertForGeneral(_lecturerDetailsDtos.Status)</MudTd>
+                        </MudTr>
+                    </MudSimpleTable>
+                </MudItem>
+ *@                <MudItem xs="12" md="12">
+                    <MudText Typo="Typo.h6" Color="Color.Inherit">Các chỉ số chi tiết từng kì học</MudText>
+
+                @if (_listIndicatorForDetails.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Warning">Không có dữ liệu</MudAlert>
+                }
+                else
+                {
+
+                    <MudTable Items="@_listIndicatorForDetails" Hover="true" Striped="true" FixedHeader="true">
+                        <HeaderContent>
+                            <MudTh>STT</MudTh>
+                            <MudTh>Kỳ học</MudTh>
+                            <MudTh>Tổng số sinh viên</MudTh>
+                            <MudTh>Tổng số lớp</MudTh>
+                            <MudTh>Số Sinh viên qua môn</MudTh>
+                            <MudTh>Số Sinh viên cấm thi</MudTh>
+                            <MudTh>Số sinh viên trượt</MudTh>
+                            <MudTh>Số lớp cấm thi >20%</MudTh>
+                            <MudTh>Số lớp cấm thi >10%</MudTh>
+                            <MudTh>Số lớp cấm thi dưới 3%</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@(_listIndicatorForDetails.IndexOf(context) + 1)</MudTd>
+                            <MudTd DataLabel="Semester">@context.Semester</MudTd>
+                                <MudTd DataLabel="StudentTotalNumber">@context.StudentTotalNumber</MudTd>
+                                <MudTd DataLabel="ClassTotalNumber">@context.ClassTotalNumber</MudTd>
+                                <MudTd DataLabel="StudentPassedNumber">@context.StudentPassedNumber@("/")@context.StudentTotalNumber<br>@(" (")@context.StudentPassedPercent.ToString("0.00\\%\\)")</MudTd>
+                                <MudTd DataLabel="StudentFailedNumber">@context.StudentFailedNumber@("/")@context.StudentTotalNumber<br>@(" (")@context.StudentFailedPercent.ToString("0.00\\%\\)")</MudTd>
+                                <MudTd DataLabel="StudentBannedNumber">@context.StudentBannedNumber@("/")@context.StudentTotalNumber<br>@(" (")@context.StudentBannedPercent.ToString("0.00\\%\\)")</MudTd>
+                                <MudTd DataLabel="ClassGreaterThan20PercentBannedNumber">@context.ClassGreaterThan20PercentBannedNumber@("/")@context.ClassTotalNumber<br>@(" (")@context.ClassGreaterThan20PercentBannedPercent.ToString("0.00\\%\\)")</MudTd>
+                                <MudTd DataLabel="ClassGreaterThan10PercentBannedNumber">@context.ClassGreaterThan10PercentBannedNumber@("/")@context.ClassTotalNumber<br>@(" (")@context.ClassGreaterThan10PercentBannedPercent.ToString("0.00\\%\\)")</MudTd>
+                                <MudTd DataLabel="ClassLessThan3PercentBannedNumber">@context.ClassLessThan3PercentBannedNumber@("/")@context.ClassTotalNumber<br>@(" (")@context.ClassLessThan3PercentBannedPercent.ToString("0.00\\%\\)")</MudTd>
+                            </RowTemplate>
+                            <PagerContent>
+                                @if (_paginationResponse != null)
+                            {
+                                <MudGrid Class="mb-3">
+                                    <MudItem xs="12" Class="d-flex justify-center mt-3">
+                                        @if (_paginationResponse.PageNumber <= 1)
+                                        {
+                                            <MudPagination Color="Color.Primary" BoundaryCount="1" Count="@(_paginationResponse!.HasNext? 2 : 1)" @bind-Selected="@_paginationRequest.PageNumber" />
+                                        }
+                                        else
+                                        {
+                                            <MudPagination Color="Color.Primary" BoundaryCount="1" Count="@(_paginationResponse!.HasNext? (_paginationResponse.PageNumber + 1) : _paginationResponse.PageNumber)" @bind-Selected="@_paginationRequest.PageNumber" />
+                                        }
+                                    </MudItem>
+                                </MudGrid>
+                            }
+                        </PagerContent>
+                    </MudTable>
+                }
+            </MudItem>
+        </MudGrid>
+    }
+}
+
+
+@code {
+    [Inject] private ILecturerReadOnlyRepository _lecturerReadOnlyRepository { get; set; }
+    [Inject] private ILocalizationService _localizationService { get; set; }
+    private CancellationToken _cancellationToken = default;
+    ViewLecturerDetailsWithPaginationRequest _paginationRequest = new();
+    private PaginationResponse<LecturerIndicatorForDetails> _paginationResponse { get; set; }
+    private List<LecturerIndicatorForDetails> _listIndicatorForDetails { get; set; }
+
+    private LecturerDetailsDto _lecturerDetailsDtos { get; set; }
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLecturerDetails();
+    }
+    private async Task LoadLecturerDetails()
+    {
+        _paginationRequest.UserEmail = _currentUser.Email;
+        LecturerDetailsViewModel vm = new(_lecturerReadOnlyRepository, _localizationService);
+        await vm.HandleAsync(_paginationRequest, _cancellationToken);
+        if (vm.Success)
+        {
+            _lecturerDetailsDtos = (LecturerDetailsDto)vm.Data;
+            _paginationResponse = _lecturerDetailsDtos.LecturerIndicatorForDetails;
+            _listIndicatorForDetails = _paginationResponse.Data!.ToList();
+        }
+        else
+        {
+            _lecturerDetailsDtos = new();
+            _paginationResponse = new();
+            _listIndicatorForDetails = new();
+        }
+    }
+}
